@@ -67,6 +67,8 @@ export class BinanceController {
     status: string;
     timestamp: number;
     binanceApiStatus: string;
+    coingeckoApiStatus: string;
+    error?: string;
   }> {
     this.logger.log('Binance service health check');
     try {
@@ -76,13 +78,20 @@ export class BinanceController {
         status: 'healthy',
         timestamp: Date.now(),
         binanceApiStatus: testPair ? 'connected' : 'disconnected',
+        coingeckoApiStatus: 'not_tested',
       };
     } catch (error) {
       this.logger.error('Binance API health check failed:', error.message);
+      
+      // Check if it's a 451 error
+      const is451Error = error.message.includes('451') || error.message.includes('geographic restriction');
+      
       return {
-        status: 'unhealthy',
+        status: is451Error ? 'blocked' : 'unhealthy',
         timestamp: Date.now(),
-        binanceApiStatus: 'error',
+        binanceApiStatus: is451Error ? 'blocked_451' : 'error',
+        coingeckoApiStatus: 'fallback_available',
+        error: error.message,
       };
     }
   }
