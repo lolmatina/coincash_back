@@ -6,8 +6,17 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+    origin: [
+      process.env.FRONTEND_URL || 'http://localhost:3001',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://coincash.com',
+      'https://www.coincash.com',
+      // Add your deployed frontend domain here
+    ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Referer'],
   });
 
   app.useGlobalPipes(new ValidationPipe({

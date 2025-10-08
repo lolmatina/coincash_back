@@ -62,6 +62,31 @@ export class BinanceController {
     };
   }
 
+  @Get('health')
+  async healthCheck(): Promise<{
+    status: string;
+    timestamp: number;
+    binanceApiStatus: string;
+  }> {
+    this.logger.log('Binance service health check');
+    try {
+      // Test Binance API connectivity
+      const testPair = await this.binanceService.getTradingPair('BTCUSDT');
+      return {
+        status: 'healthy',
+        timestamp: Date.now(),
+        binanceApiStatus: testPair ? 'connected' : 'disconnected',
+      };
+    } catch (error) {
+      this.logger.error('Binance API health check failed:', error.message);
+      return {
+        status: 'unhealthy',
+        timestamp: Date.now(),
+        binanceApiStatus: 'error',
+      };
+    }
+  }
+
   @Get('crypto-cards')
   async getCryptoCards(): Promise<{
     cards: Array<{
