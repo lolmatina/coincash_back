@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS managers (
+  id SERIAL PRIMARY KEY,
+  telegram_chat_id VARCHAR(32) NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
