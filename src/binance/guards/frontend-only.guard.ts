@@ -18,6 +18,7 @@ export class FrontendOnlyGuard implements CanActivate {
       'https://your-frontend-domain.com',
       'https://coincash-front.vercel.app',
       'https://auth-front.vercel.app',
+      'https://www.coincash.biz.kg'
     ];
 
     if (origin && allowedOrigins.some(allowedOrigin => origin.includes(allowedOrigin))) {
