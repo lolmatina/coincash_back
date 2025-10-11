@@ -76,25 +76,44 @@ export class BinanceService {
       }
 
       // Fetch from Binance API via proxy
+      this.logger.log('Fetching trading pairs from Binance API via proxy');
       const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
         params: {
-          path: 'api/v3/ticker/24hr'
+          path: 'ticker/24hr'
         },
         ...this.axiosConfig
       });
+      
+      this.logger.log(`Proxy response status: ${response.status}`);
+      
+      // Validate response data
+      if (!response.data || !Array.isArray(response.data)) {
+        this.logger.error('Invalid response data from proxy:', response.data);
+        throw new Error('Invalid response format from proxy');
+      }
+      
       const data: TradingPair[] = response.data;
 
-      // Filter for USDT pairs only
-      const usdtPairs = data.filter(pair => pair.symbol.endsWith('USDT'));
+      // Filter for USDT pairs only and validate each pair
+      const usdtPairs = data.filter(pair => {
+        if (!pair || typeof pair !== 'object') {
+          this.logger.warn('Invalid pair object:', pair);
+          return false;
+        }
+        return pair.symbol && pair.symbol.endsWith('USDT');
+      });
 
       // Cache the data
       await this.cacheManager.set(cacheKey, usdtPairs, this.CACHE_TTL);
       this.cacheKeys.add(cacheKey);
       
-      this.logger.log(`Fetched ${usdtPairs.length} trading pairs from Binance API`);
+      this.logger.log(`Fetched ${usdtPairs.length} trading pairs from Binance API via proxy`);
       return usdtPairs;
     } catch (error) {
       this.logger.error('Error fetching trading pairs:', error.message);
+      if (error.response) {
+        this.logger.error('Proxy response error:', error.response.status, error.response.data);
+      }
       throw new Error('Failed to fetch trading pairs from Binance');
     }
   }
@@ -111,23 +130,36 @@ export class BinanceService {
       }
 
       // Fetch from Binance API via proxy
+      this.logger.log(`Fetching trading pair data for ${symbol} from Binance API via proxy`);
       const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
         params: {
-          path: 'api/v3/ticker/24hr',
+          path: 'ticker/24hr',
           symbol: symbol
         },
         ...this.axiosConfig
       });
+      
+      this.logger.log(`Proxy response status for ${symbol}: ${response.status}`);
+      
+      // Validate response data
+      if (!response.data || typeof response.data !== 'object') {
+        this.logger.error(`Invalid response data for ${symbol}:`, response.data);
+        return null;
+      }
+      
       const data: TradingPair = response.data;
 
       // Cache the data
       await this.cacheManager.set(cacheKey, data, this.CACHE_TTL);
       this.cacheKeys.add(cacheKey);
       
-      this.logger.log(`Fetched trading pair data for ${symbol} from Binance API`);
+      this.logger.log(`Fetched trading pair data for ${symbol} from Binance API via proxy`);
       return data;
     } catch (error) {
       this.logger.error(`Error fetching trading pair ${symbol}:`, error.message);
+      if (error.response) {
+        this.logger.error(`Proxy response error for ${symbol}:`, error.response.status, error.response.data);
+      }
       return null;
     }
   }
@@ -144,23 +176,36 @@ export class BinanceService {
       }
 
       // Fetch from Binance API via proxy
+      this.logger.log(`Fetching price for ${symbol} from Binance API via proxy`);
       const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
         params: {
-          path: 'api/v3/ticker/price',
+          path: 'ticker/price',
           symbol: symbol
         },
         ...this.axiosConfig
       });
+      
+      this.logger.log(`Proxy response status for ${symbol} price: ${response.status}`);
+      
+      // Validate response data
+      if (!response.data || typeof response.data !== 'object') {
+        this.logger.error(`Invalid price response data for ${symbol}:`, response.data);
+        return null;
+      }
+      
       const data: PriceData = response.data;
 
       // Cache the data
       await this.cacheManager.set(cacheKey, data, this.CACHE_TTL);
       this.cacheKeys.add(cacheKey);
       
-      this.logger.log(`Fetched price for ${symbol} from Binance API`);
+      this.logger.log(`Fetched price for ${symbol} from Binance API via proxy`);
       return data;
     } catch (error) {
       this.logger.error(`Error fetching price for ${symbol}:`, error.message);
+      if (error.response) {
+        this.logger.error(`Proxy response error for ${symbol} price:`, error.response.status, error.response.data);
+      }
       return null;
     }
   }
@@ -177,15 +222,24 @@ export class BinanceService {
       }
 
       // Fetch from Binance API via proxy
+      this.logger.log(`Fetching kline data for ${symbol} from Binance API via proxy`);
       const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
         params: {
-          path: 'api/v3/klines',
+          path: 'klines',
           symbol,
           interval,
           limit,
         },
         ...this.axiosConfig
       });
+      
+      this.logger.log(`Proxy response status for ${symbol} klines: ${response.status}`);
+      
+      // Validate response data
+      if (!response.data || !Array.isArray(response.data)) {
+        this.logger.error(`Invalid kline response data for ${symbol}:`, response.data);
+        return [];
+      }
       
       const data: KlineData[] = response.data.map((kline: any[]) => ({
         openTime: kline[0],
@@ -206,10 +260,13 @@ export class BinanceService {
       await this.cacheManager.set(cacheKey, data, this.CACHE_TTL);
       this.cacheKeys.add(cacheKey);
       
-      this.logger.log(`Fetched kline data for ${symbol} from Binance API`);
+      this.logger.log(`Fetched kline data for ${symbol} from Binance API via proxy`);
       return data;
     } catch (error) {
       this.logger.error(`Error fetching kline data for ${symbol}:`, error.message);
+      if (error.response) {
+        this.logger.error(`Proxy response error for ${symbol} klines:`, error.response.status, error.response.data);
+      }
       return [];
     }
   }
