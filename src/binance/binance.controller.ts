@@ -106,21 +106,37 @@ export class BinanceController {
     timestamp: number;
   }> {
     this.logger.log('Fetching crypto cards data');
-    const pairs = await this.binanceService.getPopularPairs();
-    
-    const cards = pairs.slice(0, 4).map(pair => ({
-      symbol: pair.symbol.replace('USDT', ''),
-      name: this.getCryptoName(pair.symbol),
-      price: parseFloat(pair.lastPrice).toFixed(2),
-      change: parseFloat(pair.priceChange).toFixed(2),
-      changePercent: parseFloat(pair.priceChangePercent).toFixed(2),
-      trend: parseFloat(pair.priceChangePercent) >= 0 ? 'up' as const : 'down' as const,
-    }));
+    try {
+      const pairs = await this.binanceService.getPopularPairs();
+      
+      if (!pairs || pairs.length === 0) {
+        this.logger.warn('No trading pairs data available');
+        return {
+          cards: [],
+          timestamp: Date.now(),
+        };
+      }
+      
+      const cards = pairs.slice(0, 4).map(pair => ({
+        symbol: pair.symbol ? pair.symbol.replace('USDT', '') : 'UNKNOWN',
+        name: this.getCryptoName(pair.symbol || ''),
+        price: parseFloat(pair.lastPrice || '0').toFixed(2),
+        change: parseFloat(pair.priceChange || '0').toFixed(2),
+        changePercent: parseFloat(pair.priceChangePercent || '0').toFixed(2),
+        trend: parseFloat(pair.priceChangePercent || '0') >= 0 ? 'up' as const : 'down' as const,
+      }));
 
-    return {
-      cards,
-      timestamp: Date.now(),
-    };
+      return {
+        cards,
+        timestamp: Date.now(),
+      };
+    } catch (error) {
+      this.logger.error('Error fetching crypto cards data:', error.message);
+      return {
+        cards: [],
+        timestamp: Date.now(),
+      };
+    }
   }
 
   @Get('exchange-data')
@@ -135,20 +151,36 @@ export class BinanceController {
     timestamp: number;
   }> {
     this.logger.log('Fetching exchange data');
-    const pairs = await this.binanceService.getPopularPairs();
-    
-    const tradingPairs = pairs.map(pair => ({
-      symbol: pair.symbol,
-      price: parseFloat(pair.lastPrice).toFixed(2),
-      change24h: parseFloat(pair.priceChange).toFixed(2),
-      changePercent24h: parseFloat(pair.priceChangePercent).toFixed(2),
-      trend: parseFloat(pair.priceChangePercent) >= 0 ? 'up' as const : 'down' as const,
-    }));
+    try {
+      const pairs = await this.binanceService.getPopularPairs();
+      
+      if (!pairs || pairs.length === 0) {
+        this.logger.warn('No trading pairs data available');
+        return {
+          tradingPairs: [],
+          timestamp: Date.now(),
+        };
+      }
+      
+      const tradingPairs = pairs.map(pair => ({
+        symbol: pair.symbol || 'UNKNOWN',
+        price: parseFloat(pair.lastPrice || '0').toFixed(2),
+        change24h: parseFloat(pair.priceChange || '0').toFixed(2),
+        changePercent24h: parseFloat(pair.priceChangePercent || '0').toFixed(2),
+        trend: parseFloat(pair.priceChangePercent || '0') >= 0 ? 'up' as const : 'down' as const,
+      }));
 
-    return {
-      tradingPairs,
-      timestamp: Date.now(),
-    };
+      return {
+        tradingPairs,
+        timestamp: Date.now(),
+      };
+    } catch (error) {
+      this.logger.error('Error fetching exchange data:', error.message);
+      return {
+        tradingPairs: [],
+        timestamp: Date.now(),
+      };
+    }
   }
 
   private getCryptoName(symbol: string): string {
