@@ -67,30 +67,27 @@ export class BinanceController {
     status: string;
     timestamp: number;
     binanceApiStatus: string;
-    coingeckoApiStatus: string;
+    proxyStatus: string;
     error?: string;
   }> {
     this.logger.log('Binance service health check');
     try {
-      // Test Binance API connectivity
+      // Test Binance API connectivity via proxy
       const testPair = await this.binanceService.getTradingPair('BTCUSDT');
       return {
         status: 'healthy',
         timestamp: Date.now(),
         binanceApiStatus: testPair ? 'connected' : 'disconnected',
-        coingeckoApiStatus: 'not_tested',
+        proxyStatus: 'operational',
       };
     } catch (error) {
       this.logger.error('Binance API health check failed:', error.message);
       
-      // Check if it's a 451 error
-      const is451Error = error.message.includes('451') || error.message.includes('geographic restriction');
-      
       return {
-        status: is451Error ? 'blocked' : 'unhealthy',
+        status: 'unhealthy',
         timestamp: Date.now(),
-        binanceApiStatus: is451Error ? 'blocked_451' : 'error',
-        coingeckoApiStatus: 'fallback_available',
+        binanceApiStatus: 'error',
+        proxyStatus: 'error',
         error: error.message,
       };
     }

@@ -18,9 +18,6 @@ export class FrontendOnlyGuard implements CanActivate {
       'https://your-frontend-domain.com',
       'https://coincash-front.vercel.app',
       'https://auth-front.vercel.app',
-      'https://coincash.com',
-      'https://www.coincash.com',
-      // Add your actual deployed frontend domain here
     ];
 
     if (origin && allowedOrigins.some(allowedOrigin => origin.includes(allowedOrigin))) {
@@ -51,23 +48,6 @@ export class FrontendOnlyGuard implements CanActivate {
     // For development, allow requests without origin/referer
     if (!origin && !referer) {
       return true;
-    }
-
-    // In production, be more permissive for Binance API endpoints
-    // since they're public market data - allow most requests
-    const isProduction = process.env.NODE_ENV === 'production';
-    if (isProduction) {
-      // Only block obvious bots/crawlers, allow everything else
-      if (!userAgent || !(
-        userAgent.includes('curl') ||
-        userAgent.includes('wget') ||
-        userAgent.includes('Postman') ||
-        userAgent.includes('insomnia') ||
-        userAgent.includes('bot') ||
-        userAgent.includes('crawler')
-      )) {
-        return true;
-      }
     }
 
     throw new ForbiddenException('Access denied: This endpoint is only available for frontend applications');

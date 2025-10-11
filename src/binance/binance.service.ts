@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import axios from 'axios';
+import https from 'https';
 
 export interface TradingPair {
   symbol: string;
@@ -51,11 +52,15 @@ export interface KlineData {
 @Injectable()
 export class BinanceService {
   private readonly logger = new Logger(BinanceService.name);
-  private readonly BINANCE_BASE_URL = 'https://api.binance.com/api/v3';
-  private readonly COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
+  private readonly BINANCE_BASE_URL = 'https://proxy.coincash.biz.kg';
   private readonly CACHE_TTL = 30000; // 30 seconds cache
   private readonly cacheKeys = new Set<string>();
-  private binanceBlocked = false;
+  private readonly axiosConfig = {
+    httpsAgent: new https.Agent({
+      rejectUnauthorized: false, // Allow self-signed certificates
+    }),
+    timeout: 10000,
+  };
 
   constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
@@ -70,8 +75,13 @@ export class BinanceService {
         return cachedData;
       }
 
-      // Fetch from Binance API
-      const response = await axios.get(`${this.BINANCE_BASE_URL}/ticker/24hr`);
+      // Fetch from Binance API via proxy
+      const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
+        params: {
+          path: 'api/v3/ticker/24hr'
+        },
+        ...this.axiosConfig
+      });
       const data: TradingPair[] = response.data;
 
       // Filter for USDT pairs only
@@ -85,15 +95,6 @@ export class BinanceService {
       return usdtPairs;
     } catch (error) {
       this.logger.error('Error fetching trading pairs:', error.message);
-      
-      // Handle specific error codes
-      if (error.response?.status === 451) {
-        this.logger.warn('Binance API blocked (451) - likely geographic restriction');
-        this.binanceBlocked = true;
-        this.logger.log('Falling back to CoinGecko API');
-        return this.getTradingPairsFromCoinGecko();
-      }
-      
       throw new Error('Failed to fetch trading pairs from Binance');
     }
   }
@@ -109,8 +110,14 @@ export class BinanceService {
         return cachedData;
       }
 
-      // Fetch from Binance API
-      const response = await axios.get(`${this.BINANCE_BASE_URL}/ticker/24hr?symbol=${symbol}`);
+      // Fetch from Binance API via proxy
+      const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
+        params: {
+          path: 'api/v3/ticker/24hr',
+          symbol: symbol
+        },
+        ...this.axiosConfig
+      });
       const data: TradingPair = response.data;
 
       // Cache the data
@@ -121,13 +128,6 @@ export class BinanceService {
       return data;
     } catch (error) {
       this.logger.error(`Error fetching trading pair ${symbol}:`, error.message);
-      
-      // Handle specific error codes
-      if (error.response?.status === 451) {
-        this.logger.warn(`Binance API blocked (451) for ${symbol} - likely geographic restriction`);
-        return null;
-      }
-      
       return null;
     }
   }
@@ -143,8 +143,14 @@ export class BinanceService {
         return cachedData;
       }
 
-      // Fetch from Binance API
-      const response = await axios.get(`${this.BINANCE_BASE_URL}/ticker/price?symbol=${symbol}`);
+      // Fetch from Binance API via proxy
+      const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
+        params: {
+          path: 'api/v3/ticker/price',
+          symbol: symbol
+        },
+        ...this.axiosConfig
+      });
       const data: PriceData = response.data;
 
       // Cache the data
@@ -170,13 +176,15 @@ export class BinanceService {
         return cachedData;
       }
 
-      // Fetch from Binance API
-      const response = await axios.get(`${this.BINANCE_BASE_URL}/klines`, {
+      // Fetch from Binance API via proxy
+      const response = await axios.get(`${this.BINANCE_BASE_URL}`, {
         params: {
+          path: 'api/v3/klines',
           symbol,
           interval,
           limit,
         },
+        ...this.axiosConfig
       });
       
       const data: KlineData[] = response.data.map((kline: any[]) => ({
@@ -233,49 +241,4 @@ export class BinanceService {
     }
   }
 
-  // Fallback method using CoinGecko API
-  private async getTradingPairsFromCoinGecko(): Promise<TradingPair[]> {
-    try {
-      this.logger.log('Fetching trading pairs from CoinGecko API');
-      
-      const response = await axios.get(`${this.COINGECKO_BASE_URL}/coins/markets`, {
-        params: {
-          vs_currency: 'usd',
-          order: 'market_cap_desc',
-          per_page: 50,
-          page: 1,
-          sparkline: false,
-        },
-      });
-
-      const pairs: TradingPair[] = response.data.map((coin: any) => ({
-        symbol: `${coin.symbol.toUpperCase()}USDT`,
-        price: coin.current_price?.toString() || '0',
-        priceChange: coin.price_change_24h?.toString() || '0',
-        priceChangePercent: coin.price_change_percentage_24h?.toString() || '0',
-        weightedAvgPrice: coin.current_price?.toString() || '0',
-        prevClosePrice: (coin.current_price - coin.price_change_24h)?.toString() || '0',
-        lastPrice: coin.current_price?.toString() || '0',
-        lastQty: '0',
-        bidPrice: coin.current_price?.toString() || '0',
-        askPrice: coin.current_price?.toString() || '0',
-        openPrice: (coin.current_price - coin.price_change_24h)?.toString() || '0',
-        highPrice: coin.high_24h?.toString() || '0',
-        lowPrice: coin.low_24h?.toString() || '0',
-        volume: coin.total_volume?.toString() || '0',
-        quoteVolume: coin.total_volume?.toString() || '0',
-        openTime: Date.now() - 86400000, // 24 hours ago
-        closeTime: Date.now(),
-        firstId: 0,
-        lastId: 0,
-        count: 0,
-      }));
-
-      this.logger.log(`Fetched ${pairs.length} trading pairs from CoinGecko API`);
-      return pairs;
-    } catch (error) {
-      this.logger.error('Error fetching trading pairs from CoinGecko:', error.message);
-      throw new Error('Failed to fetch trading pairs from both Binance and CoinGecko');
-    }
-  }
 }
