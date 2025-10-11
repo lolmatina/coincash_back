@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, NotFoundException, Inject, forwardRef, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, Inject, forwardRef, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { AuthDto } from './dto/auth.dto';
@@ -9,6 +9,8 @@ import { User } from '../database/supabase.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
@@ -73,10 +75,37 @@ export class AuthService {
   }
 
   async resendEmailVerification(email: string): Promise<void> {
-    const user = await this.userService.findByEmail(email);
-    if (!user) throw new NotFoundException('User not found');
-    if (user.email_verified_at !== null) throw new BadRequestException('Email already verified');
-    await this.initiateEmailVerification(user);
+    this.logger.log(`Starting resend email verification process for: ${email}`);
+    
+    try {
+      this.logger.log(`Looking up user by email: ${email}`);
+      const user = await this.userService.findByEmail(email);
+      
+      if (!user) {
+        this.logger.warn(`User not found for email: ${email}`);
+        throw new NotFoundException('User not found');
+      }
+      
+      this.logger.log(`User found: ID=${user.id}, email_verified_at=${user.email_verified_at}`);
+      
+      if (user.email_verified_at !== null) {
+        this.logger.warn(`Email already verified for user: ${email}`);
+        throw new BadRequestException('Email already verified');
+      }
+      
+      this.logger.log(`Initiating email verification for user: ${user.id}`);
+      await this.initiateEmailVerification(user);
+      
+      this.logger.log(`✅ Email verification process completed successfully for: ${email}`);
+      
+    } catch (error) {
+      this.logger.error(`❌ Error in resendEmailVerification for ${email}:`, {
+        error: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      throw error; // Re-throw to let controller handle it
+    }
   }
 
   async verifyEmailCode(email: string, code: string): Promise<void> {

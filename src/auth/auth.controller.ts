@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, HttpCode, HttpStatus, UploadedFiles, UseInterceptors, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Controller, Post, Body, Res, HttpCode, HttpStatus, UploadedFiles, UseInterceptors, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { AuthDto } from './dto/auth.dto';
@@ -9,6 +9,8 @@ import { FileUploadService } from './file-upload.service';
 
 @Controller('api/v1/auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     @Inject(forwardRef(() => UserService))
@@ -85,14 +87,68 @@ export class AuthController {
   @Post('email/send')
   @HttpCode(HttpStatus.OK)
   async sendEmailVerification(@Body('email') email: string, @Res() res: Response) {
+    this.logger.log(`Attempting to resend verification email to: ${email}`);
+    
     try {
-      await this.authService.resendEmailVerification(email);
-      return res.json({ message: 'Verification email sent' });
-    } catch (error) {
-      if (error.status) {
-        return res.status(error.status).json({ message: error.message });
+      // Validate email input
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        this.logger.warn(`Invalid email format provided: ${email}`);
+        return res.status(400).json({ 
+          message: 'Invalid email format',
+          error: 'INVALID_EMAIL_FORMAT'
+        });
       }
-      return res.status(500).json({ message: 'Internal server error' });
+
+      this.logger.log(`Processing resend verification request for: ${email}`);
+      await this.authService.resendEmailVerification(email);
+      
+      this.logger.log(`✅ Verification email successfully sent to: ${email}`);
+      return res.json({ 
+        message: 'Verification email sent successfully',
+        success: true
+      });
+      
+    } catch (error) {
+      this.logger.error(`❌ Failed to resend verification email to ${email}:`, {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+        status: error.status
+      });
+
+      // Handle specific error types
+      if (error.status) {
+        this.logger.warn(`Client error (${error.status}) for ${email}: ${error.message}`);
+        return res.status(error.status).json({ 
+          message: error.message,
+          error: error.name || 'CLIENT_ERROR'
+        });
+      }
+
+      // Handle database errors
+      if (error.code && error.code.includes('ECONNREFUSED')) {
+        this.logger.error(`Database connection error for ${email}:`, error.message);
+        return res.status(503).json({ 
+          message: 'Service temporarily unavailable',
+          error: 'DATABASE_UNAVAILABLE'
+        });
+      }
+
+      // Handle email service errors
+      if (error.message && error.message.includes('SMTP')) {
+        this.logger.error(`SMTP error for ${email}:`, error.message);
+        return res.status(502).json({ 
+          message: 'Email service temporarily unavailable',
+          error: 'EMAIL_SERVICE_ERROR'
+        });
+      }
+
+      // Generic server error
+      this.logger.error(`Unexpected server error for ${email}:`, error);
+      return res.status(500).json({ 
+        message: 'Internal server error',
+        error: 'INTERNAL_SERVER_ERROR'
+      });
     }
   }
 

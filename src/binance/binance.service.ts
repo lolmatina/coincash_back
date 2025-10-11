@@ -3,7 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import axios from 'axios';
-import https from 'https';
+import * as https from 'https';
 
 export interface TradingPair {
   symbol: string;
