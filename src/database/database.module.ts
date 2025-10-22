@@ -10,8 +10,12 @@ import { SupabaseService } from './supabase.service';
     // Serve static files for local storage
     ...(process.env.STORAGE_TYPE === 'local' ? [
       ServeStaticModule.forRoot({
-        rootPath: join(process.cwd(), process.env.LOCAL_STORAGE_PATH || 'uploads'),
-        serveRoot: '/uploads',
+        rootPath: join(process.cwd(), process.env.LOCAL_STORAGE_PATH || 'uploads', 'documents'),
+        serveRoot: '/uploads/documents',
+        serveStaticOptions: {
+          index: false,
+          fallthrough: true
+        }
       }),
     ] : []),
   ],

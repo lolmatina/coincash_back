@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import axios from 'axios';
 import * as fs from 'fs';
 import FormData from 'form-data';
@@ -6,6 +6,8 @@ import { ManagerService } from '../manager/manager.service';
 import { UserService } from '../user/user.service';
 import { EmailService } from '../email/email.service';
 import { SupabaseService } from '../database/supabase.service';
+import { DATABASE_SERVICE } from '../database/services.provider';
+import { IDatabaseService } from '../database/interfaces/database.interface';
 
 @Injectable()
 export class TelegramService {
@@ -16,6 +18,7 @@ export class TelegramService {
     private readonly userService: UserService,
     private readonly emailService: EmailService,
     private readonly supabaseService: SupabaseService,
+    @Inject(DATABASE_SERVICE) private readonly databaseService: IDatabaseService,
   ) {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN;
   }
@@ -383,7 +386,14 @@ export class TelegramService {
 
   private async showPendingUsers(chatId: string, messageId: number, isRefresh: boolean = false, page: number = 0): Promise<void> {
     try {
-      const unprocessedUsers = await this.supabaseService.getUnprocessedUsers();
+      const databaseType = process.env.DATABASE_TYPE || 'supabase';
+      let unprocessedUsers;
+      
+      if (databaseType === 'supabase') {
+        unprocessedUsers = await this.supabaseService.getUnprocessedUsers();
+      } else {
+        unprocessedUsers = await this.databaseService.getUnprocessedUsers();
+      }
       
       if (unprocessedUsers.length === 0) {
         await this.editMessage(chatId, messageId, 
@@ -524,16 +534,35 @@ export class TelegramService {
 
   private async showStats(chatId: string, messageId: number): Promise<void> {
     try {
-      // Get all users with submitted documents using Supabase client directly
-      const { data: allUsers, error } = await this.supabaseService.getClient()
-        .from('users')
-        .select('*')
-        .not('documents_submitted_at', 'is', null);
+      const databaseType = process.env.DATABASE_TYPE || 'supabase';
+      let allUsers = [];
+      let pendingUsers = [];
+      
+      if (databaseType === 'supabase') {
+        // Get all users with submitted documents using Supabase client directly
+        const supabaseClient = this.supabaseService.getClient();
+        if (!supabaseClient) {
+          throw new Error('Supabase client is not available');
+        }
         
-      if (error) {
-        throw new Error(`Failed to fetch users: ${error.message}`);
+        const { data, error } = await supabaseClient
+          .from('users')
+          .select('*')
+          .not('documents_submitted_at', 'is', null);
+          
+        if (error) {
+          throw new Error(`Failed to fetch users: ${error.message}`);
+        }
+        
+        allUsers = data;
+        pendingUsers = await this.supabaseService.getUnprocessedUsers();
+      } else {
+        // Use database service interface for non-Supabase implementations
+        // Use type assertion since we know the implementation has this method
+        allUsers = await (this.databaseService as any).getAllUsersWithDocuments();
+        pendingUsers = await this.databaseService.getUnprocessedUsers();
       }
-      const pendingUsers = await this.supabaseService.getUnprocessedUsers();
+      
       const approvedUsers = allUsers.filter(u => u.documents_verified_at !== null);
       const deniedUsers = allUsers.filter(u => u.documents_verified_at === null && u.documents_submitted_at !== null);
       

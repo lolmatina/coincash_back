@@ -15,4 +15,5 @@ export interface IDatabaseService {
   findManagerByTelegramId(telegramChatId: string): Promise<Manager | null>;
   getAllManagers(): Promise<Manager[]>;
   getUnprocessedUsers(): Promise<User[]>;
+  getAllUsersWithDocuments(): Promise<User[]>;
 }

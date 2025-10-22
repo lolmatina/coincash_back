@@ -4,9 +4,15 @@ import { ManagerModule } from '../manager/manager.module';
 import { TelegramController } from './telegram.controller';
 import { UserModule } from '../user/user.module';
 import { EmailModule } from '../email/email.module';
+import { DatabaseModule } from '../database/database.module';
 
 @Module({
-  imports: [forwardRef(() => ManagerModule), forwardRef(() => UserModule), EmailModule],
+  imports: [
+    forwardRef(() => ManagerModule), 
+    forwardRef(() => UserModule), 
+    EmailModule,
+    DatabaseModule
+  ],
   controllers: [TelegramController],
   providers: [TelegramService],
   exports: [TelegramService],

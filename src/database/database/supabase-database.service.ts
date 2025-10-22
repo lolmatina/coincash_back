@@ -178,4 +178,17 @@ export class SupabaseDatabaseService implements IDatabaseService {
     }
     return data as User[];
   }
+
+  async getAllUsersWithDocuments(): Promise<User[]> {
+    const { data, error } = await this.supabaseClient
+      .from('users')
+      .select('*')
+      .not('documents_submitted_at', 'is', null);
+
+    if (error) {
+      console.error('Supabase getAllUsersWithDocuments error:', error);
+      throw new InternalServerErrorException(error.message);
+    }
+    return data as User[];
+  }
 }

@@ -49,6 +49,11 @@ export class LocalStorageService implements IStorageService {
   }
 
   getPublicUrl(bucket: string, filePath: string): string {
+    // For documents, we need to handle the special directory structure
+    if (bucket === 'documents') {
+      // The actual file path already includes 'documents/' prefix
+      return `${this.baseUrl}/${bucket}/${filePath}`;
+    }
     return `${this.baseUrl}/${bucket}/${filePath}`;
   }
 }

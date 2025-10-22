@@ -263,4 +263,19 @@ export class DirectDatabaseService implements IDatabaseService, OnModuleInit {
       throw new InternalServerErrorException(error.message);
     }
   }
+
+  async getAllUsersWithDocuments(): Promise<User[]> {
+    const query = `
+      SELECT * FROM users 
+      WHERE documents_submitted_at IS NOT NULL
+    `;
+    
+    try {
+      const result = await this.pool.query(query);
+      return result.rows;
+    } catch (error) {
+      console.error('Direct DB getAllUsersWithDocuments error:', error);
+      throw new InternalServerErrorException(error.message);
+    }
+  }
 }
