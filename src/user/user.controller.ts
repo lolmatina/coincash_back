@@ -14,6 +14,7 @@ import {
   forwardRef,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { UserService } from './user.service';
@@ -130,6 +131,43 @@ export class UserController {
       await this.userService.remove(id);
       return res.json({
         message: 'User deleted successfully',
+      });
+    } catch (error) {
+      if (error.status) {
+        return res.status(error.status).json({
+          message: error.message,
+        });
+      }
+      return res.status(500).json({
+        message: 'Internal server error',
+      });
+    }
+  }
+
+  @Get('verify-status/by-email')
+  async getVerificationStatus(@Query('email') email: string, @Res() res: Response) {
+    try {
+      if (!email) {
+        return res.status(400).json({
+          message: 'Email is required',
+        });
+      }
+      
+      const user = await this.userService.findByEmail(email);
+      
+      if (!user) {
+        return res.status(404).json({
+          message: 'User not found',
+        });
+      }
+      
+      return res.json({
+        email: user.email,
+        verification_status: {
+          email_verified_at: user.email_verified_at,
+          documents_submitted_at: user.documents_submitted_at,
+          documents_verified_at: user.documents_verified_at,
+        }
       });
     } catch (error) {
       if (error.status) {
