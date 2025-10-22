@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { SupabaseService, Manager } from '../database/supabase.service';
+import { SupabaseService } from '../database/supabase.service';
+import { Manager } from '../database/types/database.types';
 
 @Injectable()
 export class ManagerService {

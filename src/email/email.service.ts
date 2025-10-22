@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private readonly logger = new Logger(EmailService.name);
 
   constructor() {
     const port = parseInt(process.env.SMTP_PORT) || 587;
@@ -300,6 +301,228 @@ export class EmailService {
     } catch (error) {
       console.error('❌ Ошибка отправки email об отклонении документов:', error);
       throw new Error('Не удалось отправить email об отклонении документов');
+    }
+  }
+
+  /**
+   * Send password reset email with token
+   * @param email User's email address
+   * @param token Reset token
+   */
+  async sendPasswordResetEmail(email: string, token: string): Promise<void> {
+    this.logger.log(`Sending password reset email to: ${email}`);
+    
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}`;
+    
+    try {
+      await this.transporter.sendMail({
+        from: {
+          name: 'CoinCash Platform',
+          address: process.env.SMTP_FROM || process.env.SMTP_USER
+        },
+        to: email,
+        subject: 'Password Reset Request - CoinCash',
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Password Reset - CoinCash</title>
+          </head>
+          <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+              
+              <!-- Header -->
+              <div style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 30px 20px; text-align: center;">
+                <h1 style="margin: 0; font-size: 28px; font-weight: bold;">CoinCash Platform</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Password Reset</p>
+              </div>
+              
+              <!-- Content -->
+              <div style="padding: 40px 30px;">
+                <h2 style="color: #333333; font-size: 24px; margin: 0 0 20px 0;">Password Reset Request</h2>
+                
+                <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                  We received a request to reset your password for your CoinCash account. To proceed with resetting your password, please click the button below:
+                </p>
+                
+                <!-- Reset Button -->
+                <div style="text-align: center; margin: 35px 0;">
+                  <a href="${resetLink}" style="background-color: #3b82f6; color: white; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
+                    Reset Password
+                  </a>
+                </div>
+                
+                <p style="color: #666666; font-size: 14px; margin: 20px 0;">
+                  If the button above doesn't work, you can also copy and paste the following link into your browser:
+                </p>
+                
+                <div style="background-color: #f5f5f5; border: 1px solid #e0e0e0; padding: 15px; border-radius: 5px; word-break: break-all;">
+                  <a href="${resetLink}" style="color: #3b82f6; font-size: 14px; text-decoration: none;">
+                    ${resetLink}
+                  </a>
+                </div>
+                
+                <p style="color: #666666; font-size: 14px; text-align: center; margin: 20px 0;">
+                  This link will expire in <strong>15 minutes</strong>.
+                </p>
+                
+                <!-- Security Notice -->
+                <div style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding: 20px; margin: 30px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #856404; font-size: 14px;">
+                    <strong>Security Notice:</strong> If you did not request a password reset, please ignore this email or contact support immediately. Your account security is important to us.
+                  </p>
+                </div>
+                
+                <!-- Footer -->
+                <div style="border-top: 1px solid #eeeeee; padding-top: 20px; margin-top: 30px;">
+                  <p style="color: #888888; font-size: 14px; text-align: center; margin: 0;">
+                    Best regards,<br>
+                    <strong>CoinCash Support Team</strong><br>
+                    <a href="mailto:support@coincash.biz.kg" style="color: #3b82f6; text-decoration: none;">support@coincash.biz.kg</a>
+                  </p>
+                </div>
+              </div>
+              
+            </div>
+          </body>
+          </html>
+        `,
+        text: `
+          CoinCash Platform - Password Reset
+          
+          Password Reset Request
+          
+          We received a request to reset your password for your CoinCash account. To proceed with resetting your password, please use the link below:
+          
+          ${resetLink}
+          
+          This link will expire in 15 minutes.
+          
+          Security Notice: If you did not request a password reset, please ignore this email or contact support immediately. Your account security is important to us.
+          
+          Best regards,
+          CoinCash Support Team
+          support@coincash.biz.kg
+        `,
+      });
+      
+      this.logger.log(`Password reset email sent successfully to: ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send password reset email to ${email}:`, error);
+      throw new Error(`Failed to send password reset email: ${error.message}`);
+    }
+  }
+
+  /**
+   * Send password reset confirmation email
+   * @param email User's email address
+   */
+  async sendPasswordResetConfirmationEmail(email: string): Promise<void> {
+    this.logger.log(`Sending password reset confirmation email to: ${email}`);
+    
+    const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth/signin`;
+    
+    try {
+      await this.transporter.sendMail({
+        from: {
+          name: 'CoinCash Platform',
+          address: process.env.SMTP_FROM || process.env.SMTP_USER
+        },
+        to: email,
+        subject: 'Password Reset Successful - CoinCash',
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Password Reset Successful - CoinCash</title>
+          </head>
+          <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+              
+              <!-- Header -->
+              <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px 20px; text-align: center;">
+                <h1 style="margin: 0; font-size: 28px; font-weight: bold;">CoinCash Platform</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Password Reset Successful</p>
+              </div>
+              
+              <!-- Content -->
+              <div style="padding: 40px 30px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <span style="font-size: 60px; color: #10b981;">✓</span>
+                </div>
+                
+                <h2 style="color: #333333; font-size: 24px; margin: 0 0 20px 0; text-align: center;">Your Password Has Been Reset</h2>
+                
+                <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                  Your password for your CoinCash account has been successfully reset. You can now log in with your new password.
+                </p>
+                
+                <!-- Login Button -->
+                <div style="text-align: center; margin: 35px 0;">
+                  <a href="${loginLink}" style="background-color: #10b981; color: white; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
+                    Log In to Your Account
+                  </a>
+                </div>
+                
+                <!-- Security Tips -->
+                <div style="background-color: #e8f4fd; border-left: 4px solid #3b82f6; padding: 20px; margin: 30px 0; border-radius: 4px;">
+                  <p style="margin: 0 0 15px 0; color: #1e40af; font-size: 16px; font-weight: bold;">
+                    Security Tips:
+                  </p>
+                  <ul style="color: #1e3a8a; font-size: 14px; margin: 0; padding-left: 20px;">
+                    <li style="margin-bottom: 8px;">Never share your password with anyone</li>
+                    <li style="margin-bottom: 8px;">Use a unique password for your CoinCash account</li>
+                    <li style="margin-bottom: 8px;">Consider changing your password regularly</li>
+                    <li>Log out when using shared computers</li>
+                  </ul>
+                </div>
+                
+                <!-- Footer -->
+                <div style="border-top: 1px solid #eeeeee; padding-top: 20px; margin-top: 30px;">
+                  <p style="color: #888888; font-size: 14px; text-align: center; margin: 0;">
+                    If you did not request this password change, please contact our support team immediately.<br><br>
+                    Best regards,<br>
+                    <strong>CoinCash Support Team</strong><br>
+                    <a href="mailto:support@coincash.biz.kg" style="color: #10b981; text-decoration: none;">support@coincash.biz.kg</a>
+                  </p>
+                </div>
+              </div>
+              
+            </div>
+          </body>
+          </html>
+        `,
+        text: `
+          CoinCash Platform - Password Reset Successful
+          
+          Your Password Has Been Reset
+          
+          Your password for your CoinCash account has been successfully reset. You can now log in with your new password.
+          
+          Log in to your account: ${loginLink}
+          
+          Security Tips:
+          - Never share your password with anyone
+          - Use a unique password for your CoinCash account
+          - Consider changing your password regularly
+          - Log out when using shared computers
+          
+          If you did not request this password change, please contact our support team immediately.
+          
+          Best regards,
+          CoinCash Support Team
+          support@coincash.biz.kg
+        `,
+      });
+      
+      this.logger.log(`Password reset confirmation email sent successfully to: ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send password reset confirmation email to ${email}:`, error);
+      throw new Error(`Failed to send password reset confirmation email: ${error.message}`);
     }
   }
 }

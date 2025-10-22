@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { SupabaseService } from '../database/supabase.service';
+import { Injectable, Inject } from '@nestjs/common';
+import { IStorageService } from '../database/interfaces/storage.interface';
+import { STORAGE_SERVICE } from '../database/services.provider';
 import * as path from 'path';
 
 // Extend the Express.Multer.File interface to ensure buffer is recognized
@@ -15,7 +16,9 @@ declare global {
 
 @Injectable()
 export class FileUploadService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService
+  ) {}
 
   async uploadDocuments(
     email: string,
@@ -30,11 +33,11 @@ export class FileUploadService {
     const selfiePath = `documents/${sanitizedEmail}/${timestamp}_selfie${path.extname(files.selfie.originalname)}`;
 
     try {
-      // Upload all files to Supabase Storage
+      // Upload all files using the storage service
       const [frontUrl, backUrl, selfieUrl] = await Promise.all([
-        this.supabaseService.uploadFile('documents', frontPath, files.front.buffer, files.front.mimetype),
-        this.supabaseService.uploadFile('documents', backPath, files.back.buffer, files.back.mimetype),
-        this.supabaseService.uploadFile('documents', selfiePath, files.selfie.buffer, files.selfie.mimetype),
+        this.storageService.uploadFile('documents', frontPath, files.front.buffer, files.front.mimetype),
+        this.storageService.uploadFile('documents', backPath, files.back.buffer, files.back.mimetype),
+        this.storageService.uploadFile('documents', selfiePath, files.selfie.buffer, files.selfie.mimetype),
       ]);
 
       return {
@@ -57,17 +60,17 @@ export class FileUploadService {
       
       if (documentUrls.front) {
         const frontPath = this.extractPathFromUrl(documentUrls.front);
-        deletePromises.push(this.supabaseService.deleteFile('documents', frontPath));
+        deletePromises.push(this.storageService.deleteFile('documents', frontPath));
       }
       
       if (documentUrls.back) {
         const backPath = this.extractPathFromUrl(documentUrls.back);
-        deletePromises.push(this.supabaseService.deleteFile('documents', backPath));
+        deletePromises.push(this.storageService.deleteFile('documents', backPath));
       }
       
       if (documentUrls.selfie) {
         const selfiePath = this.extractPathFromUrl(documentUrls.selfie);
-        deletePromises.push(this.supabaseService.deleteFile('documents', selfiePath));
+        deletePromises.push(this.storageService.deleteFile('documents', selfiePath));
       }
 
       await Promise.all(deletePromises);
@@ -78,9 +81,20 @@ export class FileUploadService {
   }
 
   private extractPathFromUrl(url: string): string {
-    // Extract the file path from the Supabase public URL
-    // URL format: https://[project].supabase.co/storage/v1/object/public/documents/path/to/file.jpg
-    const urlParts = url.split('/storage/v1/object/public/documents/');
-    return urlParts[1] || '';
+    // For Supabase URLs: https://[project].supabase.co/storage/v1/object/public/documents/path/to/file.jpg
+    if (url.includes('/storage/v1/object/public/documents/')) {
+      const urlParts = url.split('/storage/v1/object/public/documents/');
+      return urlParts[1] || '';
+    }
+    
+    // For local storage URLs: http://localhost:3000/uploads/documents/path/to/file.jpg
+    if (url.includes('/uploads/documents/')) {
+      const urlParts = url.split('/uploads/documents/');
+      return urlParts[1] || '';
+    }
+    
+    // If we can't parse the URL, return the whole URL as a fallback
+    console.warn('Could not parse URL:', url);
+    return url;
   }
 }

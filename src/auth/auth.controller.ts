@@ -3,6 +3,8 @@ import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { AuthDto } from './dto/auth.dto';
 import { SignupDto } from './dto/signup.dto';
+import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
+import { PasswordResetDto } from './dto/password-reset.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { UserService } from '../user/user.service';
 import { FileUploadService } from './file-upload.service';
@@ -212,6 +214,101 @@ export class AuthController {
         return res.status(error.status).json({ message: error.message });
       }
       return res.status(500).json({ message: 'Failed to upload documents' });
+    }
+  }
+
+  @Post('password/reset/request')
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordReset(@Body() passwordResetRequestDto: PasswordResetRequestDto, @Res() res: Response) {
+    this.logger.log(`Password reset request received for email: ${passwordResetRequestDto.email}`);
+    
+    try {
+      const result = await this.authService.requestPasswordReset(passwordResetRequestDto.email);
+      
+      this.logger.log(`Password reset email sent successfully to: ${passwordResetRequestDto.email}`);
+      return res.json({
+        success: true,
+        message: 'Password reset email sent successfully',
+        remainingAttempts: result.remainingAttempts,
+        resetTime: result.resetTime,
+      });
+    } catch (error) {
+      this.logger.error(`Error processing password reset request for ${passwordResetRequestDto.email}:`, error);
+      
+      if (error.status) {
+        return res.status(error.status).json({
+          message: error.message,
+          error: error.name || 'CLIENT_ERROR',
+        });
+      }
+      
+      // Handle database errors
+      if (error.code && error.code.includes('ECONNREFUSED')) {
+        return res.status(503).json({ 
+          message: 'Service temporarily unavailable',
+          error: 'DATABASE_UNAVAILABLE'
+        });
+      }
+      
+      // Handle email service errors
+      if (error.message && error.message.includes('SMTP')) {
+        return res.status(502).json({ 
+          message: 'Email service temporarily unavailable',
+          error: 'EMAIL_SERVICE_ERROR'
+        });
+      }
+      
+      return res.status(500).json({
+        message: 'Internal server error',
+        error: 'INTERNAL_SERVER_ERROR',
+      });
+    }
+  }
+
+  @Post('password/reset')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() passwordResetDto: PasswordResetDto, @Res() res: Response) {
+    this.logger.log(`Password reset attempt with token: ${passwordResetDto.token.substring(0, 8)}...`);
+    
+    try {
+      await this.authService.resetPassword(passwordResetDto.token, passwordResetDto.newPassword);
+      
+      this.logger.log('Password reset successful');
+      return res.json({
+        success: true,
+        message: 'Password reset successfully',
+      });
+    } catch (error) {
+      this.logger.error('Error processing password reset:', error);
+      
+      if (error.status) {
+        return res.status(error.status).json({
+          message: error.message,
+          error: error.name || 'CLIENT_ERROR',
+        });
+      }
+      
+      return res.status(500).json({
+        message: 'Internal server error',
+        error: 'INTERNAL_SERVER_ERROR',
+      });
+    }
+  }
+
+  @Post('email/check')
+  @HttpCode(HttpStatus.OK)
+  async checkEmail(@Body('email') email: string, @Res() res: Response) {
+    try {
+      const exists = await this.userService.emailExists(email);
+      return res.json({
+        exists,
+        message: exists ? 'Email is already registered' : 'Email is available',
+      });
+    } catch (error) {
+      if (error.status) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      return res.status(500).json({ message: 'Internal server error' });
     }
   }
 }
